@@ -91,26 +91,29 @@ int main()
 	float * d_out; 
 	int * d_out_DIMS;
 	int * d_in_DIMS;	
-        cudaMalloc((void **) &d_in, DEPTH*HEIGHT*WIDTH*sizeof(float));
-        cudaMalloc((void **) &d_out, HEIGHT*WIDTH*sizeof(float));
+    cudaMalloc((void **) &d_in, DEPTH*HEIGHT*WIDTH*sizeof(float));
+    cudaMalloc((void **) &d_out, HEIGHT*WIDTH*sizeof(float));
 	cudaMalloc((void **) &d_out_DIMS, 2*sizeof(int));
 	cudaMalloc((void **) &d_in_DIMS, 3*sizeof(int));
-        cudaMemcpy(d_in, h_in, DEPTH*HEIGHT*WIDTH*sizeof(float), cudaMemcpyHostToDevice); 
-        cudaMemcpy(d_in_DIMS, h_in_DIMS, 3*sizeof(int), cudaMemcpyHostToDevice); 
-        cudaMemcpy(d_out_DIMS, h_out_DIMS, 2*sizeof(int), cudaMemcpyHostToDevice); 
+    cudaMemcpy(d_in, h_in, DEPTH*HEIGHT*WIDTH*sizeof(float), cudaMemcpyHostToDevice); 
+    cudaMemcpy(d_in_DIMS, h_in_DIMS, 3*sizeof(int), cudaMemcpyHostToDevice); 
+    cudaMemcpy(d_out_DIMS, h_out_DIMS, 2*sizeof(int), cudaMemcpyHostToDevice); 
 
 	//dim3 block(WIDTH, HEIGHT);
 	dim3 block(MAX_TILE_DIM, MAX_TILE_DIM);
 
 	KERNEL_max<<<grid, block>>>(d_out, d_out_DIMS, d_in, d_in_DIMS);
 
-        cudaMemcpy(h_out, d_out, HEIGHT*WIDTH*sizeof(float), cudaMemcpyDeviceToHost);
+    cudaMemcpy(h_out, d_out, HEIGHT*WIDTH*sizeof(float), cudaMemcpyDeviceToHost);
 
 	printf("\n Final channel pooled output -->\n");
 	printArr2d(h_out, h_out_DIMS);
 
 	cudaFree(d_in); 
 	cudaFree(d_out);
+
+    free(h_in); 
+    free(h_out);
 	
 
 	
