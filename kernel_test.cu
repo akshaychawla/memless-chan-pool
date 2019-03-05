@@ -27,6 +27,7 @@ unsigned long int getOffset_DEVICE(int * indices, int * dimensions, int num_dime
         return offset; 
 }
 
+
 extern "C" __global__ 
 void my_add(float * x1, float * x2, float * y){
 
@@ -58,7 +59,8 @@ void KERNEL_max(float * d_out, int * d_out_DIMS, float * d_in, int * d_in_DIMS)
 	int col= blockIdx.x*blockDim.x + threadIdx.x; 
 	int row= blockIdx.y*blockDim.y + threadIdx.y; 
     int indices[] = {0,row,col};
-    printf("Grid Dimensions %d %d %d \n", gridDim.x, gridDim.y, gridDim.z);
+    printf("Grid Dimensions %d %d %d BlockIdx: %d %d %d ThreadIdx: %d %d %d \n", gridDim.x, gridDim.y, gridDim.z,
+    blockIdx.x, blockIdx.y, blockIdx.z, threadIdx.x, threadIdx.y, threadIdx.z);
 	
 	// bounds checking 
 	if ( (indices[1]>=d_in_DIMS[1]) || (indices[2]>=d_in_DIMS[2]) ){
@@ -76,4 +78,58 @@ void KERNEL_max(float * d_out, int * d_out_DIMS, float * d_in, int * d_in_DIMS)
 	// store the max value in the (row,col) location of d_out
 	int indices3[] = {row,col};
 	*(d_out + getOffset_DEVICE(indices3, d_out_DIMS, 2)) = max_value;
+}
+
+
+
+/* 
+This function performs channel pooling over multiple sections 
+*/
+extern "C" __global__ 
+void KERNEL_max_multi(float * d_out, int * d_out_DIMS, float * d_in, int * d_in_DIMS, int * channel_idx_sets, int * channel_idx_sets_DIMS, 
+    int MAX_CHANNELS_PER_SET)
+{
+	//printf("Block x: %d , y %d\n",blockIdx.x, blockIdx.y);
+	int col= blockIdx.x*blockDim.x + threadIdx.x; 
+    int row= blockIdx.y*blockDim.y + threadIdx.y; 
+    int channel_set_idx = blockIdx.z;
+    int indices[] = {0,row,col};
+	
+	// bounds checking 
+	if ( (indices[1]>=d_in_DIMS[1]) || (indices[2]>=d_in_DIMS[2]) ){
+		return;
+	}
+
+    // Find maximum value along channels subset indexed by (channel_set_idx, :) subarray in channel_idx_sets 
+    float max_val = 0.0; //min value based on FLT_MIN
+    int first_pass = 1;
+    for(int channel_index=0; channel_index<MAX_CHANNELS_PER_SET; channel_index++){
+
+        // 1. extract channel value from 2d array channel_idx_sets 
+        int indices_0[] = {channel_set_idx, channel_index};
+        int current_channel = *(channel_idx_sets + getOffset_DEVICE(indices_0, channel_idx_sets_DIMS, 2));
+
+        // Special case: use -1 padding for unequal channel sets.
+        if (current_channel==-1){
+            continue;
+        }
+
+        // 2. Extract the value at this location (current_channel, row, col)
+        int indices2[] = {current_channel, row, col}; 
+        float current_value = *(d_in+getOffset_DEVICE(indices2,d_in_DIMS,3)); 
+
+        if(first_pass==1){
+            max_val = current_value;
+            first_pass = 0;
+        }
+        else {
+            if(current_value > max_val){
+                max_val = current_value;
+            }
+
+        }
+    }
+    // Replace the value at location (channel_set_idx, row, col) in  d_out
+    int indices_out[] = {channel_set_idx, row, col}; 
+    *(d_out + getOffset_DEVICE(indices_out, d_out_DIMS, 3)) = max_val;
 }
