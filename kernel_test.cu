@@ -87,7 +87,7 @@ This function performs channel pooling over multiple sections
 */
 extern "C" __global__ 
 void KERNEL_max_multi(float * d_out, int * d_out_DIMS, float * d_in, int * d_in_DIMS, int * channel_idx_sets, int * channel_idx_sets_DIMS, 
-    int MAX_CHANNELS_PER_SET)
+    int * max_channels, int * max_channels_DIMS, int MAX_CHANNELS_PER_SET)
 {
 	//printf("Block x: %d , y %d\n",blockIdx.x, blockIdx.y);
 	int col= blockIdx.x*blockDim.x + threadIdx.x; 
@@ -102,6 +102,7 @@ void KERNEL_max_multi(float * d_out, int * d_out_DIMS, float * d_in, int * d_in_
 
     // Find maximum value along channels subset indexed by (channel_set_idx, :) subarray in channel_idx_sets 
     float max_val = 0.0; //min value based on FLT_MIN
+    int max_channel = -1;
     int first_pass = 1;
     for(int channel_index=0; channel_index<MAX_CHANNELS_PER_SET; channel_index++){
 
@@ -120,11 +121,13 @@ void KERNEL_max_multi(float * d_out, int * d_out_DIMS, float * d_in, int * d_in_
 
         if(first_pass==1){
             max_val = current_value;
+            max_channel = current_channel;
             first_pass = 0;
         }
         else {
             if(current_value > max_val){
                 max_val = current_value;
+                max_channel = current_channel;
             }
 
         }
@@ -132,4 +135,8 @@ void KERNEL_max_multi(float * d_out, int * d_out_DIMS, float * d_in, int * d_in_
     // Replace the value at location (channel_set_idx, row, col) in  d_out
     int indices_out[] = {batch_idx, channel_set_idx, row, col}; 
     *(d_out + getOffset_DEVICE(indices_out, d_out_DIMS, 4)) = max_val;
+
+    // Store the max_channel at the corresponding location in tensor max_channels (NUM_CHANNEL_SETS x HEIGHT x WIDTH)
+    int indices_mcs[] = {batch_idx, channel_set_idx, row, col};
+    *(max_channels + getOffset_DEVICE(indices_mcs, max_channels_DIMS,4)) = max_channel;
 }
