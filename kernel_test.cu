@@ -92,11 +92,11 @@ void KERNEL_max_multi(float * d_out, int * d_out_DIMS, float * d_in, int * d_in_
 	//printf("Block x: %d , y %d\n",blockIdx.x, blockIdx.y);
 	int col= blockIdx.x*blockDim.x + threadIdx.x; 
     int row= blockIdx.y*blockDim.y + threadIdx.y; 
-    int channel_set_idx = blockIdx.z;
-    int indices[] = {0,row,col};
+    int channel_set_idx = threadIdx.z;
+    int batch_idx = blockIdx.z;
 	
 	// bounds checking 
-	if ( (indices[1]>=d_in_DIMS[1]) || (indices[2]>=d_in_DIMS[2]) ){
+	if ( (row>=d_in_DIMS[2]) || (col>=d_in_DIMS[3]) ){
 		return;
 	}
 
@@ -115,8 +115,8 @@ void KERNEL_max_multi(float * d_out, int * d_out_DIMS, float * d_in, int * d_in_
         }
 
         // 2. Extract the value at this location (current_channel, row, col)
-        int indices2[] = {current_channel, row, col}; 
-        float current_value = *(d_in+getOffset_DEVICE(indices2,d_in_DIMS,3)); 
+        int indices2[] = {batch_idx, current_channel, row, col}; 
+        float current_value = *(d_in+getOffset_DEVICE(indices2,d_in_DIMS,4)); 
 
         if(first_pass==1){
             max_val = current_value;
@@ -130,6 +130,6 @@ void KERNEL_max_multi(float * d_out, int * d_out_DIMS, float * d_in, int * d_in_
         }
     }
     // Replace the value at location (channel_set_idx, row, col) in  d_out
-    int indices_out[] = {channel_set_idx, row, col}; 
-    *(d_out + getOffset_DEVICE(indices_out, d_out_DIMS, 3)) = max_val;
+    int indices_out[] = {batch_idx, channel_set_idx, row, col}; 
+    *(d_out + getOffset_DEVICE(indices_out, d_out_DIMS, 4)) = max_val;
 }

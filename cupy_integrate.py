@@ -27,34 +27,38 @@ with open("./kernel_test.cu", "rt") as f:
     code = f.read() 
 
 
-DEPTH = 128 
-HEIGHT =  64
-WIDTH = 128
+DEPTH = 4 
+HEIGHT = 64 
+WIDTH = 128 
+batchsize = 16
 
 max_kernel = cp.RawKernel(code, "KERNEL_max_multi")
 
-d_in = cp.random.randn(DEPTH, HEIGHT,WIDTH, dtype=cp.float32) 
-d_in_DIMS = cp.array([DEPTH, HEIGHT, WIDTH], dtype=cp.int32)
-d_out_DIMS = cp.array([3,HEIGHT, WIDTH], dtype=cp.int32)
+MAX_CHANNELS_PER_SET = 2
+NUM_CHANNEL_SETS = 3
+d_in = cp.random.randn(batchsize, DEPTH, HEIGHT,WIDTH, dtype=cp.float32) 
+d_in_DIMS = cp.array([batchsize, DEPTH, HEIGHT, WIDTH], dtype=cp.int32)
+d_out_DIMS = cp.array([batchsize, NUM_CHANNEL_SETS,HEIGHT, WIDTH], dtype=cp.int32)
 d_out = cp.zeros(shape=d_out_DIMS.tolist(), dtype=cp.float32)
 channel_idx_sets_DIMS = cp.array([3,2], dtype=cp.int32)
 channel_idx_sets = cp.array([ [0,1], [0,3] , [1,2] ], dtype=cp.int32) 
-MAX_CHANNELS_PER_SET = 2
 
 MAX_TILE_DIM = 4 
 NUM_TILES_X = math.ceil(float(WIDTH)/MAX_TILE_DIM)
 NUM_TILES_Y = math.ceil(float(HEIGHT)/MAX_TILE_DIM)
 
 
-grid = (NUM_TILES_X, NUM_TILES_Y, 3)
-block = (MAX_TILE_DIM,MAX_TILE_DIM)
+grid = (NUM_TILES_X, NUM_TILES_Y, batchsize)
+block = (MAX_TILE_DIM,MAX_TILE_DIM,NUM_CHANNEL_SETS) 
 
 # run the kernel 
-op = multi_pool_numpy(d_in, channel_idx_sets)
 max_kernel(grid, block, (d_out, d_out_DIMS, d_in, d_in_DIMS, channel_idx_sets, channel_idx_sets_DIMS, MAX_CHANNELS_PER_SET))
 
 # check if numpy output is same as CUDA output 
-print("Same?", np.allclose(cp.asnumpy(d_out), op))
+for batch_idx in range(batchsize):
+    print("batch_idx: ", batch_idx)
+    op = multi_pool_numpy(d_in[batch_idx], channel_idx_sets)
+    print("Same?", np.allclose(cp.asnumpy(d_out[batch_idx]), op))
 
 
 
