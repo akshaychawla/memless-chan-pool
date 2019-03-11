@@ -10,6 +10,11 @@ class _FusedMultiPool(torch.autograd.Function):
     @staticmethod 
     def forward(ctx, TORCH_input, TORCH_channel_idx_sets, max_kernel_forward, max_kernel_backward):
 
+        # continuous data checks 
+        assert TORCH_input.is_contiguous(), "TORCH_input is not contiguous"
+        assert TORCH_channel_idx_sets.is_contiguous(), "TORCH_channel_idx_sets is not contiguous"
+
+
         d_in = cp.fromDlpack(to_dlpack(TORCH_input))
         d_in_DIMS = cp.array(d_in.shape, dtype=cp.int32)
         batchsize, CHANNELS, HEIGHT, WIDTH = d_in.shape
@@ -49,6 +54,9 @@ class _FusedMultiPool(torch.autograd.Function):
 
     @staticmethod
     def backward(ctx, TORCH_GRAD_d_out):
+
+        # cheks if tensor is stored contigous manner in memory (row-major)
+        assert TORCH_GRAD_d_out.is_contiguous(), "TORCH_GRAD_d_out is not contiguous"
 
         max_channels = ctx.max_channels
         max_channels_DIMS = ctx.max_channels_DIMS
