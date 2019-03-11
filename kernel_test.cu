@@ -96,8 +96,7 @@ void KERNEL_max_multi(float * d_out, int * d_out_DIMS, float * d_in, int * d_in_
     int batch_idx = blockIdx.z;
 	
 	// bounds checking 
-	if ( (row>=d_in_DIMS[2]) || (col>=d_in_DIMS[3]) ){
-		return;
+	if ( (row>=d_in_DIMS[2]) || (col>=d_in_DIMS[3]) ){ return;
 	}
 
     // Find maximum value along channels subset indexed by (channel_set_idx, :) subarray in channel_idx_sets 
@@ -139,4 +138,36 @@ void KERNEL_max_multi(float * d_out, int * d_out_DIMS, float * d_in, int * d_in_
     // Store the max_channel at the corresponding location in tensor max_channels (NUM_CHANNEL_SETS x HEIGHT x WIDTH)
     int indices_mcs[] = {batch_idx, channel_set_idx, row, col};
     *(max_channels + getOffset_DEVICE(indices_mcs, max_channels_DIMS,4)) = max_channel;
+}
+
+/* 
+This function performs BACKWARD PASS of channel pooling over multiple sections 
+*/
+extern "C" __global__ 
+void KERNEL_max_multi_BACKWARD(float * GRAD_d_out, int * GRAD_d_out_DIMS, float * GRAD_d_in, int * GRAD_d_in_DIMS,
+    int * max_channels, int * max_channels_DIMS)
+{
+
+	int col= blockIdx.x*blockDim.x + threadIdx.x; 
+    int row= blockIdx.y*blockDim.y + threadIdx.y; 
+    int channel_set_idx = threadIdx.z;
+    int batch_idx = blockIdx.z;
+	
+	// bounds checking 
+	if ( (row>=d_in_DIMS[2]) || (col>=d_in_DIMS[3]) ){
+		return;
+	}
+
+    // find the gradient value at location (batch, channel_set_idx, row, col) in GRAD_d_out
+    int indices_out[] = {batch_idx, channel_set_idx, row, col}; 
+    float local_grad = *(GRAD_d_out + getOffset_DEVICE(indices_out, GRAD_d_out_DIMS, 4));
+
+    // find the channel that had the maximum value for this (batchsize, channel_set_indices, row, col )
+    int indices_mcs[] = {batch_idx, channel_set_idx, row, col};
+    int max_channel = *(max_channels + getOffset_DEVICE(indices_mcs, max_channels_DIMS,4));
+
+    // rout local_grad to location (batch,max_channel,row,col) in GRAD_d_in
+    int indices_GRAD_d_in[] = {batch_idx, max_channel, row, col};
+    *(GRAD_d_in + getOffset_DEVICE(indices_GRAD_d_in, GRAD_d_in_DIMS, 4)) += local_grad;
+
 }
