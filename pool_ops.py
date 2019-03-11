@@ -8,7 +8,7 @@ import math, os, sys, time
 class _FusedMultiPool(torch.autograd.Function): 
     
     @staticmethod 
-    def forward(ctx, TORCH_input, TORCH_channel_idx_sets, max_kernel):
+    def forward(ctx, TORCH_input, TORCH_channel_idx_sets, max_kernel_forward, max_kernel_backward):
 
         d_in = cp.fromDlpack(to_dlpack(TORCH_input))
         d_in_DIMS = cp.array(d_in.shape, dtype=cp.int32)
@@ -22,9 +22,6 @@ class _FusedMultiPool(torch.autograd.Function):
         d_out_DIMS = cp.array([batchsize, NUM_CHANNEL_SETS, HEIGHT, WIDTH], dtype=cp.int32)
         d_out = cp.zeros(cp.asnumpy(d_out_DIMS).tolist(), dtype=cp.float32)
 
-        max_channels_DIMS = cp.array([batchsize, NUM_CHANNEL_SETS, HEIGHT, WIDTH], dtype=cp.int32)
-        max_channels = cp.ones(shape=max_channels_DIMS.tolist(), dtype=cp.int32)
-
         MAX_TILE_DIM = 4 
         NUM_TILES_X = math.ceil(float(WIDTH)/MAX_TILE_DIM)
         NUM_TILES_Y = math.ceil(float(HEIGHT)/MAX_TILE_DIM)
@@ -36,16 +33,46 @@ class _FusedMultiPool(torch.autograd.Function):
         blockDims = (MAX_TILE_DIM,MAX_TILE_DIM,NUM_CHANNEL_SETS) 
 
         # run the kernel 
-        max_kernel(
+        max_kernel_forward(
             gridDims, blockDims, (d_out, d_out_DIMS, d_in, d_in_DIMS, channel_idx_sets, 
             channel_idx_sets_DIMS, max_channels, max_channels_DIMS, MAX_CHANNELS_PER_SET)
         )
 
+        ctx.max_channels = max_channels
+        ctx.max_channels_DIMS = max_channels_DIMS
+        ctx.d_in_DIMS = d_in_DIMS
+        ctx.d_out_DIMS = d_out_DIMS
+        ctx.max_kernel_forward = max_kernel_forward
+        ctx.max_kernel_backward = max_kernel_backward
+
         return from_dlpack(d_out.toDlpack())
 
     @staticmethod
-    def backward(ctx, grad_output):
-        return None, None
+    def backward(ctx, TORCH_GRAD_d_out):
+
+        max_channels = ctx.max_channels
+        max_channels_DIMS = ctx.max_channels_DIMS
+        d_in_DIMS = ctx.d_in_DIMS 
+        GRAD_d_in_DIMS = ctx.d_in_DIMS
+        GRAD_d_out_DIMS = ctx.d_out_DIMS
+        GRAD_d_in = cp.zeros(shape=GRAD_d_in_DIMS.tolist(), dtype=cp.float32)
+        GRAD_d_out = cp.fromDlpack(to_dlpack(TORCH_GRAD_d_out))
+        NUM_CHANNEL_SETS = GRAD_d_in_DIMS.asnumpy()[1]
+
+        batchsize = GRAD_d_in_DIMS.asnumpy()[0]
+        MAX_TILE_DIM = 4 
+        NUM_TILES_X = math.ceil(float(WIDTH)/MAX_TILE_DIM)
+        NUM_TILES_Y = math.ceil(float(HEIGHT)/MAX_TILE_DIM)
+
+        gridDims = (NUM_TILES_X, NUM_TILES_Y, batchsize)
+        blockDims = (MAX_TILE_DIM,MAX_TILE_DIM,NUM_CHANNEL_SETS) 
+
+        self.max_kernel_backward(
+            gridDims, blockDims,
+            (GRAD_d_out, GRAD_d_out_DIMS, GRAD_d_in, GRAD_d_in_DIMS, max_channels, max_channels_DIMS)
+        )
+
+        return GRAD_d_in, None, None, None
 
 class FusedMultiPool(nn.Module): 
     def __init__(self, channel_idx_sets): 
@@ -54,13 +81,14 @@ class FusedMultiPool(nn.Module):
         # compile the CUDA kernel
         with open("./kernel_test.cu", "rt") as f: 
             code = f.read() 
-        self.max_kernel = cp.RawKernel(code, "KERNEL_max_multi") # memoized. 
+        self.max_kernel_forward = cp.RawKernel(code, "KERNEL_max_multi_FORWARD") # memoized. 
+        self.max_kernel_backward = cp.RawKernel(code, "KERNEL_max_multi_BACKWARD")
 
         # save channel_idx_sets (permanent tensor)
         self.channel_idx_sets = channel_idx_sets
     
     def forward(self, input): 
-        return _FusedMultiPool.apply(input, self.channel_idx_sets, self.max_kernel)
+        return _FusedMultiPool.apply(input, self.channel_idx_sets, self.max_kernel_forward, self.max_kernel_backward)
 
 def multi_pool_numpy(d_in, channel_idx_sets):
     d_in_cp = cp.fromDlpack(to_dlpack(d_in))

@@ -86,7 +86,7 @@ void KERNEL_max(float * d_out, int * d_out_DIMS, float * d_in, int * d_in_DIMS)
 This function performs channel pooling over multiple sections 
 */
 extern "C" __global__ 
-void KERNEL_max_multi(float * d_out, int * d_out_DIMS, float * d_in, int * d_in_DIMS, int * channel_idx_sets, int * channel_idx_sets_DIMS, 
+void KERNEL_max_multi_FORWARD(float * d_out, int * d_out_DIMS, float * d_in, int * d_in_DIMS, int * channel_idx_sets, int * channel_idx_sets_DIMS, 
     int * max_channels, int * max_channels_DIMS, int MAX_CHANNELS_PER_SET)
 {
 	//printf("Block x: %d , y %d\n",blockIdx.x, blockIdx.y);
@@ -154,7 +154,7 @@ void KERNEL_max_multi_BACKWARD(float * GRAD_d_out, int * GRAD_d_out_DIMS, float 
     int batch_idx = blockIdx.z;
 	
 	// bounds checking 
-	if ( (row>=d_in_DIMS[2]) || (col>=d_in_DIMS[3]) ){
+	if ( (row>=GRAD_d_in_DIMS[2]) || (col>=GRAD_d_in_DIMS[3]) ){
 		return;
 	}
 
