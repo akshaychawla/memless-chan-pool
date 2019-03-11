@@ -3,7 +3,7 @@ from torch import nn
 from torch.utils.dlpack import to_dlpack, from_dlpack
 import cupy as cp
 import numpy as np 
-import math, os, sys
+import math, os, sys, time
 
 class _FusedMultiPool(torch.autograd.Function): 
     
@@ -31,7 +31,6 @@ class _FusedMultiPool(torch.autograd.Function):
 
         max_channels_DIMS = cp.array([batchsize, NUM_CHANNEL_SETS, HEIGHT, WIDTH], dtype=cp.int32)
         max_channels = cp.ones(shape=max_channels_DIMS.tolist(), dtype=cp.int32)
-        import ipdb; ipdb.set_trace()
 
         gridDims = (NUM_TILES_X, NUM_TILES_Y, batchsize)
         blockDims = (MAX_TILE_DIM,MAX_TILE_DIM,NUM_CHANNEL_SETS) 
@@ -79,6 +78,54 @@ def multi_pool_numpy(d_in, channel_idx_sets):
     
     return d_out_cpu
 
+def builtin_chan_pool(x, channel_idx_sets):
+    channel_idx_sets = channel_idx_sets.long()
+    y = torch.zeros(16, 40, 64, 128, dtype=torch.float32).cuda()
+    for i in range(40):
+        new_tens = torch.index_select(x, 1, channel_idx_sets[i])
+        y_single_indcs,_ = torch.max(new_tens, 1) 
+        y[:, i] += y_single_indcs
+    return y
+
+
+def benchmark(): 
+    batchsize = 16 
+    x = torch.randn(batchsize, 256, 64, 128).cuda()
+
+    # generate channel_idx_sets 
+    channel_idx_sets = [] 
+    num_sets = 40 
+    max_channels_per_set = 102 # each set covers 40% of the input channels
+    for num_set in range(num_sets): 
+        channel_idx = np.random.randint(0, 256, size=(max_channels_per_set,))
+        channel_idx = np.sort(channel_idx) 
+        channel_idx_sets.append(channel_idx)
+    channel_idx_sets = np.array(channel_idx_sets).astype(np.int32)
+    
+    # benchmark FusedMultiPool
+    channel_idx_sets = torch.from_numpy(channel_idx_sets).cuda() 
+    test_module = FusedMultiPool(channel_idx_sets) 
+    time_durations = []
+    for _ in range(100): 
+        start = time.time()
+        y = test_module.forward(x) 
+        time_durations.append(time.time() - start)
+        del y
+    print("Custom kernel took on avg ", np.mean(time_durations[1:]))
+
+    # benchmark standard multi channel pooling 
+    time_durations = []
+    for _ in range(100):
+        start = time.time() 
+        y = builtin_chan_pool(x, channel_idx_sets)
+        time_durations.append(time.time() - start)
+        del y
+    print("Regular ol' pytorch took on avg ", np.mean(time_durations[1:]))
+    import ipdb; ipdb.set_trace()
+
+    
+
+
 def test(): 
 
     # torch is (batch, channels, height, width) perfect.
@@ -95,4 +142,5 @@ def test():
         print("Same?", np.allclose(y.cpu().numpy()[batch_idx], op))
 
 if __name__ == "__main__":
-    test()
+    benchmark()
+    # test()
