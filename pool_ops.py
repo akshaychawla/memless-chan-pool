@@ -11,9 +11,11 @@ class _FusedMultiPool(torch.autograd.Function):
     def forward(ctx, TORCH_input, TORCH_channel_idx_sets, max_kernel_forward, max_kernel_backward):
 
         # continuous data checks 
-        assert TORCH_input.is_contiguous(), "TORCH_input is not contiguous"
-        assert TORCH_channel_idx_sets.is_contiguous(), "TORCH_channel_idx_sets is not contiguous"
+        # assert TORCH_input.is_contiguous(), "TORCH_input is not contiguous"
+        # assert TORCH_channel_idx_sets.is_contiguous(), "TORCH_channel_idx_sets is not contiguous"
 
+
+        # TIME_setup_start = time.time() 
 
         d_in = cp.fromDlpack(to_dlpack(TORCH_input))
         d_in_DIMS = cp.array(d_in.shape, dtype=cp.int32)
@@ -24,24 +26,36 @@ class _FusedMultiPool(torch.autograd.Function):
 
         NUM_CHANNEL_SETS = channel_idx_sets.shape[0]
         MAX_CHANNELS_PER_SET = channel_idx_sets.shape[1]
+
         d_out_DIMS = cp.array([batchsize, NUM_CHANNEL_SETS, HEIGHT, WIDTH], dtype=cp.int32)
+
+        # TIME_setup_end = time.time() 
+        # print("Setup took {} secs".format(TIME_setup_end-TIME_setup_start))
+
         d_out = cp.zeros(cp.asnumpy(d_out_DIMS).tolist(), dtype=cp.float32)
 
-        MAX_TILE_DIM = 4 
+        MAX_TILE_DIM = 8 
         NUM_TILES_X = math.ceil(float(WIDTH)/MAX_TILE_DIM)
         NUM_TILES_Y = math.ceil(float(HEIGHT)/MAX_TILE_DIM)
 
         max_channels_DIMS = cp.array([batchsize, NUM_CHANNEL_SETS, HEIGHT, WIDTH], dtype=cp.int32)
         max_channels = cp.ones(shape=max_channels_DIMS.tolist(), dtype=cp.int32)
 
-        gridDims = (NUM_TILES_X, NUM_TILES_Y, batchsize)
-        blockDims = (MAX_TILE_DIM,MAX_TILE_DIM,NUM_CHANNEL_SETS) 
+        # gridDims = (NUM_TILES_X, NUM_TILES_Y, batchsize)
+        # blockDims = (MAX_TILE_DIM,MAX_TILE_DIM,NUM_CHANNEL_SETS) 
+        gridDims = (NUM_TILES_X, NUM_TILES_Y, NUM_CHANNEL_SETS)
+        blockDims = (MAX_TILE_DIM,MAX_TILE_DIM, batchsize) 
+
+        
 
         # run the kernel 
+        start = time.time()
         max_kernel_forward(
             gridDims, blockDims, (d_out, d_out_DIMS, d_in, d_in_DIMS, channel_idx_sets, 
             channel_idx_sets_DIMS, max_channels, max_channels_DIMS, MAX_CHANNELS_PER_SET)
         )
+        end = time.time()
+        print("Forward pas kernel only took {} seconds".format(end-start))
 
         ctx.max_channels = max_channels
         ctx.max_channels_DIMS = max_channels_DIMS
@@ -72,10 +86,12 @@ class _FusedMultiPool(torch.autograd.Function):
         NUM_TILES_X = math.ceil(float(WIDTH)/MAX_TILE_DIM)
         NUM_TILES_Y = math.ceil(float(HEIGHT)/MAX_TILE_DIM)
 
-        gridDims = (NUM_TILES_X, NUM_TILES_Y, batchsize)
-        blockDims = (MAX_TILE_DIM,MAX_TILE_DIM,NUM_CHANNEL_SETS) 
+        # gridDims = (NUM_TILES_X, NUM_TILES_Y, batchsize)
+        # blockDims = (MAX_TILE_DIM,MAX_TILE_DIM,NUM_CHANNEL_SETS) 
+        gridDims = (NUM_TILES_X, NUM_TILES_Y, NUM_CHANNEL_SETS)
+        blockDims = (MAX_TILE_DIM,MAX_TILE_DIM, batchsize) 
 
-        self.max_kernel_backward(
+        ctx.max_kernel_backward(
             gridDims, blockDims,
             (GRAD_d_out, GRAD_d_out_DIMS, GRAD_d_in, GRAD_d_in_DIMS, max_channels, max_channels_DIMS)
         )
@@ -178,5 +194,5 @@ def test():
         print("Same?", np.allclose(y.cpu().numpy()[batch_idx], op))
 
 if __name__ == "__main__":
-    benchmark()
-    # test()
+    # benchmark()
+    test()

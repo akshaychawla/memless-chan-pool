@@ -92,8 +92,10 @@ void KERNEL_max_multi_FORWARD(float * d_out, int * d_out_DIMS, float * d_in, int
 	//printf("Block x: %d , y %d\n",blockIdx.x, blockIdx.y);
 	int col= blockIdx.x*blockDim.x + threadIdx.x; 
     int row= blockIdx.y*blockDim.y + threadIdx.y; 
-    int channel_set_idx = threadIdx.z;
-    int batch_idx = blockIdx.z;
+    // int channel_set_idx = threadIdx.z;
+    // int batch_idx = blockIdx.z;
+    int channel_set_idx = blockIdx.z;
+    int batch_idx = threadIdx.z;
 	
 	// bounds checking 
 	if ( (row>=d_in_DIMS[2]) || (col>=d_in_DIMS[3]) ){ return;
@@ -150,8 +152,10 @@ void KERNEL_max_multi_BACKWARD(float * GRAD_d_out, int * GRAD_d_out_DIMS, float 
 
 	int col= blockIdx.x*blockDim.x + threadIdx.x; 
     int row= blockIdx.y*blockDim.y + threadIdx.y; 
-    int channel_set_idx = threadIdx.z;
-    int batch_idx = blockIdx.z;
+    // int channel_set_idx = threadIdx.z;
+    // int batch_idx = blockIdx.z;
+    int channel_set_idx = blockIdx.z;
+    int batch_idx = threadIdx.z;
 	
 	// bounds checking 
 	if ( (row>=GRAD_d_in_DIMS[2]) || (col>=GRAD_d_in_DIMS[3]) ){
