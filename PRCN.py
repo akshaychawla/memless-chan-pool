@@ -49,10 +49,16 @@ class PRCNv1(nn.Module):
         return out
 
 class PRCNv2(nn.Module):
-    def __init__(self, nChannels, outchannels, G, exp, kernel_size, padding, stride):
+    def __init__(self, nChannels, outChannels, G, exp, kernel_size, padding, stride):
         super(PRCNv2, self).__init__()
+
+        # check for valid G,exp ; note: fails for exp,g = (3,4) 
+        # assert (float((nChannels*exp))/G - int( (nChannels*exp)/G ) > 0.0), "Incorrect combination of exp and G"
+
+        self.nChannels = nChannels
+        self.outChannels = outChannels
+        self.G = G 
         self.exp = exp
-        self.expansion = outchannels*nChannels*self.exp
         self.channel_idx_sets = self.create_channel_idx_sets()
         self.conv1 = nn.Conv2d(nChannels, outchannels*nChannels, kernel_size=kernel_size, groups=nChannels, padding=padding, bias=True)
         self.fused_pool = FusedMultiPool(self.channel_idx_sets)
@@ -62,13 +68,12 @@ class PRCNv2(nn.Module):
     
     def create_channel_idx_sets(self,):
 
-        randomList = list(range(self.expansion))
+        randomList = list(range(self.nChannels * self.outChannels * self.exp))
         random.shuffle(randomList)
         randomList = np.array(randomList)
-        expansion = self.expansion
-        NUM_CHANNEL_SETS = int(len(randomList) / self.exp)
-        channel_idx_sets = randomList.reshape((NUM_CHANNEL_SETS,self.exp)).astype(np.int32)
-        channel_idx_sets = np.mod(channel_idx_sets, NUM_CHANNEL_SETS)
+        NUM_CHANNEL_SETS = int((self.outChannels * self.nChannels * self.exp) / self.G)
+        channel_idx_sets = randomList.reshape((NUM_CHANNEL_SETS,self.G)).astype(np.int32)
+        channel_idx_sets = np.mod(channel_idx_sets, self.outChannels * self.nChannels )
         channel_idx_sets = torch.from_numpy(channel_idx_sets).cuda() 
         return channel_idx_sets
     
