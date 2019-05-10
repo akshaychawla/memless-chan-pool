@@ -60,7 +60,7 @@ class PRCNv2(nn.Module):
         self.G = G 
         self.exp = exp
         self.channel_idx_sets = self.create_channel_idx_sets()
-        self.conv1 = nn.Conv2d(nChannels, outchannels*nChannels, kernel_size=kernel_size, groups=nChannels, padding=padding, bias=True)
+        self.conv1 = nn.Conv2d(nChannels, outChannels*nChannels, kernel_size=kernel_size, groups=nChannels, padding=padding, bias=True)
         self.fused_pool = FusedMultiPool(self.channel_idx_sets)
         self.avgpool_size = int((nChannels*exp)/G)
         self.transpool2 = nn.AvgPool3d((self.avgpool_size, 1, 1))
