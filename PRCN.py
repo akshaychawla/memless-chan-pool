@@ -32,11 +32,11 @@ class PRCNv1(nn.Module):
         self.transpool2 = nn.AvgPool3d((self.avgpool_size, 1, 1))
 
         self.index = torch.LongTensor(self.expansion).cuda()
-        self.randomlist = list(range(self.expansion))
-        random.shuffle(self.randomlist)
+        self.randomList = list(range(self.expansion))
+        random.shuffle(self.randomList)
 
         for ii in range(self.expansion):
-            self.index[ii] = self.randomlist[ii]
+            self.index[ii] = self.randomList[ii]
 
 
     def forward(self, x):
@@ -49,7 +49,7 @@ class PRCNv1(nn.Module):
         return out
 
 class PRCNv2(nn.Module):
-    def __init__(self, nChannels, outChannels, G, exp, kernel_size, padding, stride):
+    def __init__(self, nChannels, outChannels, G, exp, kernel_size, padding, stride, randomList=None):
         super(PRCNv2, self).__init__()
 
         # check for valid G,exp ; note: fails for exp,g = (3,4) 
@@ -59,18 +59,24 @@ class PRCNv2(nn.Module):
         self.outChannels = outChannels
         self.G = G 
         self.exp = exp
-        self.channel_idx_sets = self.create_channel_idx_sets()
+        self.channel_idx_sets = self.create_channel_idx_sets(randomList)
         self.conv1 = nn.Conv2d(nChannels, outChannels*nChannels, kernel_size=kernel_size, groups=nChannels, padding=padding, bias=True)
         self.fused_pool = FusedMultiPool(self.channel_idx_sets)
         self.avgpool_size = int((nChannels*exp)/G)
         self.transpool2 = nn.AvgPool3d((self.avgpool_size, 1, 1))
 
     
-    def create_channel_idx_sets(self,):
+    def create_channel_idx_sets(self, randomList):
 
-        randomList = list(range(self.nChannels * self.outChannels * self.exp))
-        random.shuffle(randomList)
-        randomList = np.array(randomList)
+        if not isinstance(randomList, np.ndarray): 
+            randomList = list(range(self.nChannels * self.outChannels * self.exp))
+            random.shuffle(randomList)
+            randomList = np.array(randomList)
+        elif isinstance(randomList, np.ndarray):
+            randomList = randomList
+        else: 
+            raise("Type of randomList not understood")
+            
         NUM_CHANNEL_SETS = int((self.outChannels * self.nChannels * self.exp) / self.G)
         channel_idx_sets = randomList.reshape((NUM_CHANNEL_SETS,self.G)).astype(np.int32)
         channel_idx_sets = np.mod(channel_idx_sets, self.outChannels * self.nChannels )
