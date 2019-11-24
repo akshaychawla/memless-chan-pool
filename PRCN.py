@@ -9,11 +9,11 @@ import torchvision.transforms as transforms
 import torch.optim as optim
 from tensorboardX import SummaryWriter
 
-torch.backends.cudnn.deterministic = True
-torch.backends.cudnn.benchmark = False
-torch.manual_seed(1)
-random.seed(1) 
-np.random.seed(1)
+# torch.backends.cudnn.deterministic = True
+# torch.backends.cudnn.benchmark = False
+# torch.manual_seed(1)
+# random.seed(1) 
+# np.random.seed(1)
 
 
 class PRCNv1(nn.Module):
