@@ -172,6 +172,6 @@ void KERNEL_max_multi_BACKWARD(float * GRAD_d_out, int * GRAD_d_out_DIMS, float 
 
     // rout local_grad to location (batch,max_channel,row,col) in GRAD_d_in
     int indices_GRAD_d_in[] = {batch_idx, max_channel, row, col};
-    *(GRAD_d_in + getOffset_DEVICE(indices_GRAD_d_in, GRAD_d_in_DIMS, 4)) += local_grad;
+    atomicAdd(GRAD_d_in + getOffset_DEVICE(indices_GRAD_d_in, GRAD_d_in_DIMS, 4), local_grad);
 
 }
