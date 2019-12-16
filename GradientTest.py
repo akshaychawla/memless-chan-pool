@@ -15,8 +15,6 @@ G = 12
 # exp = 3
 CMP = 4
 print("Performing forward and backward pass checks:") 
-# print("Parameters: ip_chans: {} | op_chans: {} | batch_size: {} | G: {} | exp: {}".format(
-#         ip_chans, op_chans, batch_size, G, exp))
 print("Parameters: ip_chans: {} | op_chans: {} | batch_size: {} | G: {} | CMP: {}".format(
         ip_chans, op_chans, batch_size, G, CMP))
 
