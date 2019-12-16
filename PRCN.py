@@ -8,6 +8,7 @@ import torchvision
 import torchvision.transforms as transforms
 import torch.optim as optim
 from tensorboardX import SummaryWriter
+from copy import deepcopy
 
 # torch.backends.cudnn.deterministic = True
 # torch.backends.cudnn.benchmark = False
@@ -15,6 +16,68 @@ from tensorboardX import SummaryWriter
 # random.seed(1) 
 # np.random.seed(1)
 
+class PRCNPTN(nn.Module): 
+    def __init__(self, in_channels, out_channels, G, CMP, kernel_size, padding, stride, randomList=None): 
+        super(PRCNPTN, self).__init__() 
+        self.CMP = CMP 
+        self.G   = G 
+        self.expansion = self.G * in_channels 
+        self.avgpoolSize = int((in_channels*self.G)/(self.CMP*out_channels))
+        self.conv1 = nn.Conv2d( in_channels, self.expansion, 
+                                kernel_size=kernel_size, padding=padding,
+                                stride=stride, groups=in_channels)
+        self.transpool1 = nn.MaxPool3d((self.CMP, 1, 1))
+        self.transpool2 = nn.AvgPool3d((self.avgpoolSize, 1, 1))
+        if isinstance(randomList, np.ndarray): 
+            self.randomList = deepcopy(randomList) 
+        else: 
+            self.randomList = list(range(self.expansion))
+            random.shuffle(self.randomList)
+            self.randomList = np.array(self.randomList)
+        self.index = torch.LongTensor(self.randomList)
+    
+    def forward(self, x): 
+        out_conv = self.conv1(x) #in_channels −→ expansion
+        out = out_conv[:,self.index,:,:] # randomization
+        out = self.transpool1(out) # expansion −→ expansion/CMP
+        # out = self.transpool2(out) # expansion/CMP −→ expansion/(CMP*avgpoolSize) == out_channels
+        return out, out_conv
+
+class FastPRCNPTN(nn.Module): 
+    def __init__(self, in_channels, out_channels, G, CMP, kernel_size, padding, stride, randomList=None): 
+        super(FastPRCNPTN, self).__init__() 
+        self.CMP = CMP 
+        self.G   = G 
+        self.expansion = self.G * in_channels 
+        self.avgpoolSize = int((in_channels*self.G)/(self.CMP*out_channels))
+        self.conv1 = nn.Conv2d( in_channels, self.expansion, 
+                                kernel_size=kernel_size, padding=padding,
+                                stride=stride, groups=in_channels)
+        self.channel_idx_sets = self.create_channel_idx_sets(randomList)
+        self.fused_pool = FusedMultiPool(self.channel_idx_sets)
+        self.transpool2 = nn.AvgPool3d((self.avgpoolSize, 1, 1))
+        
+    def create_channel_idx_sets(self, randomList):
+        if not isinstance(randomList, np.ndarray): 
+            randomList = list(range(self.expansion))
+            random.shuffle(randomList)
+            randomList = np.array(randomList)
+        elif isinstance(randomList, np.ndarray):
+            randomList = randomList
+        else: 
+            raise("Type of randomList not understood")
+            
+        NUM_CHANNEL_SETS = int((self.expansion / self.CMP))
+        channel_idx_sets = randomList.reshape((NUM_CHANNEL_SETS,self.CMP)).astype(np.int32)
+        # channel_idx_sets = np.mod(channel_idx_sets, self.outChannels * self.nChannels )
+        channel_idx_sets = torch.from_numpy(channel_idx_sets).cuda() 
+        return channel_idx_sets
+    
+    def forward(self, x): 
+        out_conv = self.conv1(x) #in_channels −→ expansion
+        out = self.fused_pool(out_conv) # expansion --> expansion/CMP
+        # out = self.transpool2(out) # expansion/CMP −→ expansion/(CMP*avgpoolSize) == out_channels
+        return out, out_conv
 
 class PRCNv1(nn.Module):
     def __init__(self, nChannels, outchannels, G, exp, kernel_size, padding, stride, randomList=None):

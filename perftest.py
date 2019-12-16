@@ -2,7 +2,7 @@ import numpy as np
 import torch.nn as nn
 import torch
 import random
-from PRCN import PRCNv1, PRCNv2
+from PRCN import PRCNPTN, FastPRCNPTN 
 import os, sys, time
 from pprint import pprint
 import argparse
@@ -14,18 +14,18 @@ def runTest(params):
     ip_chans, op_chans = params["ip_chans"], params["op_chans"]
     h, w = params["h"], params["w"]
     batch_size = params["batch_size"]
-    G, exp = params["G"], params["exp"]
+    G, CMP = params["G"], params["CMP"]
     module = None
-    if params["module"] == "PRCNv1": 
-        module = PRCNv1
-    elif params["module"] == "PRCNv2": 
-        module = PRCNv2 
+    if params["module"] == "PRCNPTN": 
+        module = PRCNPTN
+    elif params["module"] == "FastPRCNPTN": 
+        module = FastPRCNPTN 
     else: 
         raise NotImplementedError("module {} cannot be tested".format(params["module"]))
 
     obj = module(
                 ip_chans, op_chans,
-                G=G, exp=exp, kernel_size=3, 
+                G=G, CMP=CMP, kernel_size=3, 
                 padding=1, stride=1
             ) 
     obj = obj.cuda()
@@ -48,12 +48,12 @@ def runTest(params):
 def cli(): 
     parser = argparse.ArgumentParser() 
     params = {
-        "module": "PRCNv2",
+        "module": "PRCNPTN",
         "ip_chans":16, 
         "op_chans":64,
         "h": 128, "w": 128, 
         "batch_size":16, 
-        "G": 4, "exp":3,
+        "G": 12, "CMP":4,
         "numsamples": 50
         } 
     for key,val in params.items():
