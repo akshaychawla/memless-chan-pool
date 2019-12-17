@@ -5,6 +5,9 @@ import cupy as cp
 import numpy as np 
 import math, os, sys, time
 
+MAX_THREADS_PER_BLOCK=1024
+MAX_Z=64
+
 def torch2cp(torch_tens):
     return cp.fromDlpack(to_dlpack(torch_tens))
 
@@ -14,6 +17,13 @@ def cp2torch(cp_tens):
 
 class _FusedMultiPool(torch.autograd.Function): 
     
+    @staticmethod 
+    def optimize_blockDims(batch_size): 
+        tile = math.sqrt(MAX_THREADS_PER_BLOCK/batch_size)
+        tile = max(1, math.floor(tile))
+        blockDims = (tile, tile, batch_size)
+        return blockDims
+        
     @staticmethod 
     def forward(ctx, TORCH_input, TORCH_channel_idx_sets, d_out, GRAD_d_in, max_channels, kernels, DIMS):
 
@@ -34,7 +44,11 @@ class _FusedMultiPool(torch.autograd.Function):
         # gridDims = (NUM_TILES_X, NUM_TILES_Y, BATCHSIZE)
         # blockDims = (MAX_TILE_DIM,MAX_TILE_DIM,NUM_CHANNEL_SETS) 
         gridDims = (NUM_TILES_X, NUM_TILES_Y, NUM_CHANNEL_SETS)
-        blockDims = (MAX_TILE_DIM,MAX_TILE_DIM, BATCHSIZE) 
+        blockDims = _FusedMultiPool.optimize_blockDims(BATCHSIZE)
+        if np.prod(blockDims) > MAX_THREADS_PER_BLOCK: 
+            print("THREADS_PER_BLOCK: {} is >1024, this will fail".format(np.prod(blockDims)))
+        if BATCHSIZE > MAX_Z: 
+            print("Batchsize is {} > 64, this will fail".format(BATCHSIZE))
 
         # launch kernel 
         kernels["max_kernel_forward"](
@@ -70,7 +84,11 @@ class _FusedMultiPool(torch.autograd.Function):
         NUM_TILES_X = math.ceil(float(WIDTH)/MAX_TILE_DIM)
         NUM_TILES_Y = math.ceil(float(HEIGHT)/MAX_TILE_DIM)
         gridDims = (NUM_TILES_X, NUM_TILES_Y, NUM_CHANNEL_SETS)
-        blockDims = (MAX_TILE_DIM,MAX_TILE_DIM, BATCHSIZE) 
+        blockDims = _FusedMultiPool.optimize_blockDims(BATCHSIZE)
+        if np.prod(blockDims) > MAX_THREADS_PER_BLOCK: 
+            print("THREADS_PER_BLOCK: {} is >1024, this will fail".format(np.prod(blockDims)))
+        if BATCHSIZE > MAX_Z: 
+            print("Batchsize is {} > 64, this will fail".format(BATCHSIZE))
 
         # launch kernel 
         ctx.kernels["max_kernel_backward"](
