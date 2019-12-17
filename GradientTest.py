@@ -9,8 +9,8 @@ import cupy as cp
 
 # Hyperparameters
 ip_chans, op_chans = 8,16 
-h,w = 128, 128 
-batch_size = 16 
+h,w = 4, 4 
+batch_size = 63 
 G = 12 
 # exp = 3
 CMP = 4
