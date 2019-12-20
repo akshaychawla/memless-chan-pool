@@ -17,7 +17,7 @@ from copy import deepcopy
 # np.random.seed(1)
 
 class PRCNPTN(nn.Module): 
-    def __init__(self, in_channels, out_channels, G, CMP, kernel_size, padding, stride, randomList=None): 
+    def __init__(self, in_channels, out_channels, G, CMP, kernel_size, padding, stride, bias=True, randomList=None): 
         super(PRCNPTN, self).__init__() 
         self.CMP = CMP 
         self.G   = G 
@@ -25,7 +25,7 @@ class PRCNPTN(nn.Module):
         self.avgpoolSize = int((in_channels*self.G)/(self.CMP*out_channels))
         self.conv1 = nn.Conv2d( in_channels, self.expansion, 
                                 kernel_size=kernel_size, padding=padding,
-                                stride=stride, groups=in_channels)
+                                stride=stride, groups=in_channels, bias=bias)
         self.transpool1 = nn.MaxPool3d((self.CMP, 1, 1))
         self.transpool2 = nn.AvgPool3d((self.avgpoolSize, 1, 1))
         if isinstance(randomList, np.ndarray): 
@@ -40,8 +40,8 @@ class PRCNPTN(nn.Module):
         out_conv = self.conv1(x) #in_channels −→ expansion
         out = out_conv[:,self.index,:,:] # randomization
         out = self.transpool1(out) # expansion −→ expansion/CMP
-        # out = self.transpool2(out) # expansion/CMP −→ expansion/(CMP*avgpoolSize) == out_channels
-        return out, out_conv
+        out = self.transpool2(out) # expansion/CMP −→ expansion/(CMP*avgpoolSize) == out_channels
+        return out
 
 class FastPRCNPTN(nn.Module): 
     def __init__(self, in_channels, out_channels, G, CMP, kernel_size, padding, stride, randomList=None): 
@@ -76,8 +76,8 @@ class FastPRCNPTN(nn.Module):
     def forward(self, x): 
         out_conv = self.conv1(x) #in_channels −→ expansion
         out = self.fused_pool(out_conv) # expansion --> expansion/CMP
-        # out = self.transpool2(out) # expansion/CMP −→ expansion/(CMP*avgpoolSize) == out_channels
-        return out, out_conv
+        out = self.transpool2(out) # expansion/CMP −→ expansion/(CMP*avgpoolSize) == out_channels
+        return out
 
 class PRCNv1(nn.Module):
     def __init__(self, nChannels, outchannels, G, exp, kernel_size, padding, stride, randomList=None):

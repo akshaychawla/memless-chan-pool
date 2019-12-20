@@ -22,8 +22,8 @@ print("Parameters: ip_chans: {} | op_chans: {} | batch_size: {} | G: {} | CMP: {
 ltest_ip = torch.randn(batch_size, ip_chans, h, w).float().cuda()
 ltest = PRCNPTN(ip_chans,op_chans,G=G,CMP=CMP,kernel_size=3,padding=1,stride=1).cuda()
 ltest.eval()
-ltest_op, ltest_convop = ltest.forward(ltest_ip)
-print("PRCNPTN op shape: {} , PRCNPTN Conv layer op shape: {}".format(ltest_op.shape, ltest_convop.shape))
+ltest_op = ltest.forward(ltest_ip)
+print("PRCNPTN op shape: {} ".format(ltest_op.shape))
 
 # data from conv layer 
 ltest_ip = ltest_ip.detach()
@@ -42,7 +42,7 @@ layer2 = FastPRCNPTN(ip_chans, op_chans, G=G, CMP=CMP, kernel_size=3, padding=1,
 layer2.conv1.load_state_dict(layer1.conv1.state_dict())
 
 # Test backward pass PRCNPTN 
-op1,_ = layer1(ltest_ip) 
+op1 = layer1(ltest_ip) 
 op1.retain_grad()
 loss = mse(op1, gt) 
 loss.backward()
@@ -53,7 +53,7 @@ del loss
 ltest_ip.grad.zero_()
 
 # # Test backward pass FastPRCNPTN 
-op2,_ = layer2(ltest_ip) 
+op2 = layer2(ltest_ip) 
 op2.retain_grad()
 loss = mse(op2, gt) 
 loss.backward()
