@@ -44,7 +44,7 @@ class PRCNPTN(nn.Module):
         return out
 
 class FastPRCNPTN(nn.Module): 
-    def __init__(self, in_channels, out_channels, G, CMP, kernel_size, padding, stride, randomList=None): 
+    def __init__(self, in_channels, out_channels, G, CMP, kernel_size, padding, stride, bias=True, randomList=None): 
         super(FastPRCNPTN, self).__init__() 
         self.CMP = CMP 
         self.G   = G 
@@ -52,7 +52,7 @@ class FastPRCNPTN(nn.Module):
         self.avgpoolSize = int((in_channels*self.G)/(self.CMP*out_channels))
         self.conv1 = nn.Conv2d( in_channels, self.expansion, 
                                 kernel_size=kernel_size, padding=padding,
-                                stride=stride, groups=in_channels)
+                                stride=stride, groups=in_channels, bias=bias)
         self.channel_idx_sets = self.create_channel_idx_sets(randomList)
         self.fused_pool = FusedMultiPool(self.channel_idx_sets)
         self.transpool2 = nn.AvgPool3d((self.avgpoolSize, 1, 1))

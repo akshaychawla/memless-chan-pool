@@ -85,7 +85,7 @@ def run():
         net = densenet_cifar() 
         net = net.to(device=args.device)
     elif args.model == "denseprc": 
-        net = denseprc_cifar() 
+        net = denseprc_cifar(G=args.G, CMP=args.CMP) 
         net = net.to(device=args.device)
     else:
         raise NotImplementedError("{} is not available".format(args.model))
