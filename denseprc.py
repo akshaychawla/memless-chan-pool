@@ -17,7 +17,7 @@ class Bottleneck(nn.Module):
         self.conv1 = nn.Conv2d(in_planes, 4*growth_rate, kernel_size=1, bias=False)
         self.bn2 = nn.BatchNorm2d(4*growth_rate)
         # self.conv2 = nn.Conv2d(4*growth_rate, growth_rate, kernel_size=3, padding=1, bias=False)
-        self.conv2 = FastPRCNPTN(4*growth_rate, growth_rate, G=G, CMP=CMP, kernel_size=3, stride=1, padding=1, bias=False)
+        self.conv2 = PRCNPTN(4*growth_rate, growth_rate, G=G, CMP=CMP, kernel_size=3, stride=1, padding=1, bias=True)
 
     def forward(self, x):
         out = self.conv1(F.relu(self.bn1(x)))
@@ -59,14 +59,18 @@ class DensePRC(nn.Module):
         self.trans2 = Transition(num_planes, out_planes)
         num_planes = out_planes
 
+        # self.dense3 = self._make_dense_layers(block, num_planes, nblocks[2], G, CMP)
+        # num_planes += nblocks[2]*growth_rate
+        # out_planes = int(math.floor(num_planes*reduction))
+        # self.trans3 = Transition(num_planes, out_planes)
+        # num_planes = out_planes
+
+        # self.dense4 = self._make_dense_layers(block, num_planes, nblocks[3], G, CMP)
+        # num_planes += nblocks[3]*growth_rate
+
+        # Note: Dipan's changes to code only have 3 dense blocks 
         self.dense3 = self._make_dense_layers(block, num_planes, nblocks[2], G, CMP)
         num_planes += nblocks[2]*growth_rate
-        out_planes = int(math.floor(num_planes*reduction))
-        self.trans3 = Transition(num_planes, out_planes)
-        num_planes = out_planes
-
-        self.dense4 = self._make_dense_layers(block, num_planes, nblocks[3], G, CMP)
-        num_planes += nblocks[3]*growth_rate
 
         self.bn = nn.BatchNorm2d(num_planes)
         self.linear = nn.Linear(num_planes, num_classes)
@@ -82,9 +86,11 @@ class DensePRC(nn.Module):
         out = self.conv1(x)
         out = self.trans1(self.dense1(out))
         out = self.trans2(self.dense2(out))
-        out = self.trans3(self.dense3(out))
-        out = self.dense4(out)
-        out = F.avg_pool2d(F.relu(self.bn(out)), 4)
+        #out = self.trans3(self.dense3(out))
+        #out = self.dense4(out)
+        out = self.dense3(out)
+        # out = F.avg_pool2d(F.relu(self.bn(out)), 4)
+        out = F.avg_pool2d(F.relu(self.bn(out)), 8)
         out = out.view(out.size(0), -1)
         out = self.linear(out)
         return out
@@ -104,9 +110,12 @@ def DensePRC161(G,CMP):
 def denseprc_cifar(G,CMP):
     return DensePRC(Bottleneck, [6,12,24,16], G=G, CMP=CMP, growth_rate=12)
 
+def denseprc_cifar_dipan(G, CMP, reduction=1.0): 
+    return DensePRC(Bottleneck, [2,2,2], G=G, CMP=CMP, growth_rate=12, reduction=reduction)
+
 if __name__ == "__main__":
     import pdb; pdb.set_trace()
-    net = denseprc_cifar(G=12, CMP=4).cuda()
-    x = torch.randn(1,3,32,32).cuda()
+    net = denseprc_cifar_dipan(G=12, CMP=4, reduction=1.0).cuda()
+    x = torch.randn(2,3,32,32).cuda()
     y = net(x)
     # print(y)
