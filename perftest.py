@@ -5,6 +5,7 @@ import random
 from PRCN import PRCNPTN, FastPRCNPTN 
 import os, sys, time
 from pprint import pprint
+from openpyxl import Workbook, load_workbook
 import argparse
 
 def runTest(params):
@@ -54,7 +55,8 @@ def cli():
         "h": 128, "w": 128, 
         "batch_size":16, 
         "G": 12, "CMP":4,
-        "numsamples": 50
+        "numsamples": 50,
+        "xlsx": "./performance.xlsx"
         } 
     for key,val in params.items():
         parser.add_argument("--"+key, type=type(val), default=val)
@@ -69,6 +71,27 @@ if __name__ == "__main__":
     mem = torch.cuda.max_memory_allocated(0)
     mem = mem / (1024.0*1024.0)
     print("max mem: {:.2f}".format(mem))
+
+    # write to xlsx file 
+    if os.path.exists(args["xlsx"]) == False:
+        wb = Workbook()
+    else: 
+        wb = load_workbook(args["xlsx"])
+    ws = wb.active 
+    # find empty row 
+    idx = 1 
+    while ws["A"+str(idx)].value is not None:
+        idx += 1 
+    store_tuple = ( 
+            time.asctime(time.gmtime(time.time())), args["module"], args["batch_size"], 
+            args["ip_chans"], args["op_chans"], args["h"], args["w"], args["G"], 
+            args["CMP"], mem, elapsed 
+    )
+    for col_idx, store_val in enumerate(store_tuple): 
+        ws[str(chr(65+col_idx))+str(idx)] = str(store_val)
+    wb.save(args["xlsx"])
+
+        
 
 
 
