@@ -7,6 +7,7 @@ import math, os, sys, time
 
 MAX_THREADS_PER_BLOCK=1024
 MAX_Z=64
+MAX_TILE_DIM=4
 
 def torch2cp(torch_tens):
     return cp.fromDlpack(to_dlpack(torch_tens))
@@ -38,13 +39,13 @@ class _FusedMultiPool(torch.autograd.Function):
         # kernel parameters
         BATCHSIZE, CHANNELS, HEIGHT, WIDTH = DIMS["d_in_DIMS_list"]
         NUM_CHANNEL_SETS, MAX_CHANNELS_PER_SET = DIMS["channel_idx_sets_DIMS_list"]
-        MAX_TILE_DIM = 8 
-        NUM_TILES_X = math.ceil(float(WIDTH)/MAX_TILE_DIM)
-        NUM_TILES_Y = math.ceil(float(HEIGHT)/MAX_TILE_DIM)
+        NUM_TILES_X = math.ceil(float(WIDTH)/MAX_TILE_DIM)+1
+        NUM_TILES_Y = math.ceil(float(HEIGHT)/MAX_TILE_DIM)+1
         # gridDims = (NUM_TILES_X, NUM_TILES_Y, BATCHSIZE)
         # blockDims = (MAX_TILE_DIM,MAX_TILE_DIM,NUM_CHANNEL_SETS) 
         gridDims = (NUM_TILES_X, NUM_TILES_Y, NUM_CHANNEL_SETS)
         blockDims = _FusedMultiPool.optimize_blockDims(BATCHSIZE)
+        assert gridDims[0]*blockDims[0] >= HEIGHT
         if np.prod(blockDims) > MAX_THREADS_PER_BLOCK: 
             print("THREADS_PER_BLOCK: {} is >1024, this will fail".format(np.prod(blockDims)))
         if BATCHSIZE > MAX_Z: 
@@ -80,11 +81,11 @@ class _FusedMultiPool(torch.autograd.Function):
         # kernel parameters
         BATCHSIZE, CHANNELS, HEIGHT, WIDTH = DIMS["d_in_DIMS_list"]
         NUM_CHANNEL_SETS, MAX_CHANNELS_PER_SET = DIMS["channel_idx_sets_DIMS_list"]
-        MAX_TILE_DIM = 8 
-        NUM_TILES_X = math.ceil(float(WIDTH)/MAX_TILE_DIM)
-        NUM_TILES_Y = math.ceil(float(HEIGHT)/MAX_TILE_DIM)
+        NUM_TILES_X = math.ceil(float(WIDTH)/MAX_TILE_DIM)+1
+        NUM_TILES_Y = math.ceil(float(HEIGHT)/MAX_TILE_DIM)+1
         gridDims = (NUM_TILES_X, NUM_TILES_Y, NUM_CHANNEL_SETS)
         blockDims = _FusedMultiPool.optimize_blockDims(BATCHSIZE)
+        assert gridDims[0]*blockDims[0] >= HEIGHT
         if np.prod(blockDims) > MAX_THREADS_PER_BLOCK: 
             print("THREADS_PER_BLOCK: {} is >1024, this will fail".format(np.prod(blockDims)))
         if BATCHSIZE > MAX_Z: 
