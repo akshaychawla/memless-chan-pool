@@ -3,14 +3,14 @@ import matplotlib.pyplot as plt
 import torch.nn as nn 
 import torch 
 import random 
-from PRCN import PRCNv1_noconv, PRCNv2_noconv, PRCNv1, PRCNv2, PRCNPTN, FastPRCNPTN
+from PRCN import PRCNPTN, FastPRCNPTN
 from copy import deepcopy 
 import cupy as cp
 
 # Hyperparameters
-ip_chans, op_chans = 8,16 
-h,w = 4, 4 
-batch_size = 63 
+ip_chans, op_chans = 48, 24
+h,w = 32, 32
+batch_size = 64
 G = 12 
 # exp = 3
 CMP = 4
@@ -62,7 +62,7 @@ op2_grad = op2.grad.cpu().detach().numpy()
 op2_val   = op2.cpu().detach().numpy()
 del loss 
 
-print("Forward pass activation equaliy:") 
+print("Forward pass activation equality:") 
 print(torch.allclose(op2,op1))
 print("Backward pass gradient equality:")
 print(torch.allclose(grad1, grad2))
