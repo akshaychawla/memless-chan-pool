@@ -6,7 +6,7 @@ from torch import nn
 import torchvision
 from torchvision import transforms
 from densenet import densenet_cifar
-from denseprc import denseprc_cifar
+from denseprc import denseprc_cifar_dipan
 import copy, sys, time, os
 from tensorboardX import SummaryWriter
 
@@ -71,9 +71,14 @@ def run():
 
     # args
     args = cli() 
+    print("run with args: {}".format(args))
 
     # logs 
     writer = SummaryWriter(args.logs)
+
+    # Store args 
+    with open(os.path.join(args.logs, "args.txt"), "wt") as f: 
+        f.write(str(args)+"\n")
 
     # model
     args.device = None
@@ -85,7 +90,7 @@ def run():
         net = densenet_cifar() 
         net = net.to(device=args.device)
     elif args.model == "denseprc": 
-        net = denseprc_cifar(G=args.G, CMP=args.CMP) 
+        net = denseprc_cifar_dipan(G=args.G, CMP=args.CMP, reduction=1.0) 
         net = net.to(device=args.device)
     else:
         raise NotImplementedError("{} is not available".format(args.model))
